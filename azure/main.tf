@@ -8,6 +8,18 @@ variable "location" {
   description = "Azure region for all resources."
   type        = string
   default     = "westus"
+
+  validation {
+    condition = contains([
+      "eastus",
+      "eastus2",
+      "centralus",
+      "westus",
+      "westus2",
+      "westus3"
+    ], var.location)
+    error_message = "location must be one of: eastus, eastus2, centralus, westus, westus2, westus3."
+  }
 }
 
 variable "admin_username" {
@@ -17,9 +29,22 @@ variable "admin_username" {
 }
 
 variable "vm_size" {
-  description = "Azure VM size for the Linux virtual machine."
+  description = "Azure VM size override. Leave null to use the first recommended size for the selected location."
   type        = string
-  default     = "Standard_D2s_v3"
+  default     = null
+}
+
+variable "vm_size_options_by_location" {
+  description = "Preferred VM size options by Azure region. Terraform uses the first value unless vm_size is set."
+  type        = map(list(string))
+  default = {
+    eastus    = ["Standard_D2s_v3", "Standard_B2s", "Standard_B1ms"]
+    eastus2   = ["Standard_B2s", "Standard_D2s_v3", "Standard_B2ms"]
+    centralus = ["Standard_D2s_v3", "Standard_B2s", "Standard_B1ms"]
+    westus    = ["Standard_D2s_v3", "Standard_B2s", "Standard_B1ms"]
+    westus2   = ["Standard_B2s", "Standard_D2s_v3", "Standard_B2ms"]
+    westus3   = ["Standard_B2s", "Standard_D2s_v3", "Standard_B2ms"]
+  }
 }
 
 variable "ssh_public_key_path" {
@@ -44,7 +69,9 @@ resource "random_string" "suffix" {
 }
 
 locals {
-  name = "${var.prefix}-${random_string.suffix.result}"
+  name             = "${var.prefix}-${random_string.suffix.result}"
+  vm_size_options  = lookup(var.vm_size_options_by_location, var.location, ["Standard_D2s_v3"])
+  selected_vm_size = var.vm_size != null ? var.vm_size : local.vm_size_options[0]
 }
 
 resource "azurerm_resource_group" "main" {
@@ -130,7 +157,7 @@ resource "azurerm_linux_virtual_machine" "main" {
   name                = "${local.name}-vm"
   location            = azurerm_resource_group.main.location
   resource_group_name = azurerm_resource_group.main.name
-  size                = var.vm_size
+  size                = local.selected_vm_size
   admin_username      = var.admin_username
   network_interface_ids = [
     azurerm_network_interface.main.id
@@ -174,6 +201,14 @@ output "resource_group_name" {
 
 output "vm_public_ip" {
   value = azurerm_public_ip.main.ip_address
+}
+
+output "selected_vm_size" {
+  value = local.selected_vm_size
+}
+
+output "vm_size_options" {
+  value = local.vm_size_options
 }
 
 output "storage_account_name" {
