@@ -32,18 +32,23 @@ fi
 if command -v apt-get >/dev/null 2>&1; then
   # Ubuntu/Debian.
   $SUDO apt-get update
-  $SUDO apt-get install -y openjdk-21-jdk maven curl unzip git ansible
+  $SUDO apt-get install -y openjdk-21-jdk maven curl unzip git ansible jq
+
+  if ! command -v az >/dev/null 2>&1; then
+    $SUDO apt-get install -y ca-certificates apt-transport-https gnupg lsb-release
+    curl -sL https://aka.ms/InstallAzureCLIDeb | $SUDO bash
+  fi
 elif command -v dnf >/dev/null 2>&1; then
   # Fedora/RHEL 8+.
-  $SUDO dnf install -y java-21-openjdk-devel maven curl unzip git ansible
+  $SUDO dnf install -y java-21-openjdk-devel maven curl unzip git ansible jq
 elif command -v yum >/dev/null 2>&1; then
   # Older CentOS/RHEL.
-  $SUDO yum install -y java-21-openjdk-devel maven curl unzip git ansible
+  $SUDO yum install -y java-21-openjdk-devel maven curl unzip git ansible jq
 elif command -v brew >/dev/null 2>&1; then
   # macOS with Homebrew.
-  brew install openjdk@21 maven curl unzip git ansible
+  brew install openjdk@21 maven curl unzip git ansible jq azure-cli
 else
-  echo "Unsupported OS: install Java 21, Maven, curl, unzip, git, and Ansible manually." >&2
+  echo "Unsupported OS: install Java 21, Maven, curl, unzip, git, jq, Azure CLI, and Ansible manually." >&2
   exit 1
 fi
 
