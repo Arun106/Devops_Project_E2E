@@ -1,18 +1,3 @@
-terraform {
-  required_version = ">= 1.5.0"
-
-  required_providers {
-    azurerm = {
-      source  = "hashicorp/azurerm"
-      version = "~> 3.116"
-    }
-  }
-}
-
-provider "azurerm" {
-  features {}
-}
-
 variable "prefix" {
   description = "Name prefix for Azure resources."
   type        = string
@@ -35,6 +20,13 @@ variable "ssh_public_key_path" {
   description = "Path to the SSH public key used for VM login."
   type        = string
   default     = "~/.ssh/id_rsa.pub"
+}
+
+variable "ssh_public_key" {
+  description = "SSH public key content used for VM login. Set this in Terraform Cloud for remote runs."
+  type        = string
+  default     = null
+  sensitive   = true
 }
 
 resource "random_string" "suffix" {
@@ -140,7 +132,7 @@ resource "azurerm_linux_virtual_machine" "main" {
 
   admin_ssh_key {
     username   = var.admin_username
-    public_key = file(pathexpand(var.ssh_public_key_path))
+    public_key = var.ssh_public_key != null ? var.ssh_public_key : file(pathexpand(var.ssh_public_key_path))
   }
 
   os_disk {
