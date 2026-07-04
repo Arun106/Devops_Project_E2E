@@ -12,7 +12,6 @@ pipeline {
         AZURE_SP_CREDENTIALS_ID = 'azure-sp'
         AZURE_SUBSCRIPTION_ID_CREDENTIALS_ID = 'azure-subscription-id'
         AZURE_TENANT_ID_CREDENTIALS_ID = 'azure-tenant-id'
-        SSH_CREDENTIALS_ID = 'azure-vm-ssh'
     }
 
     stages {
@@ -98,16 +97,14 @@ pipeline {
 
         stage('Deploy') {
             steps {
-                sshagent(credentials: [env.SSH_CREDENTIALS_ID]) {
-                    sh '''
-                        cat > ansible/inventory.generated.ini <<EOF
+                sh '''
+                    cat > ansible/inventory.generated.ini <<EOF
 [tomcat]
-${VM_HOST} ansible_user=${VM_USER} ansible_python_interpreter=/usr/bin/python3
+localhost ansible_connection=local ansible_user=${VM_USER} ansible_python_interpreter=/usr/bin/python3
 EOF
-                        ansible -i ansible/inventory.generated.ini tomcat -m ping
-                        ansible-playbook -i ansible/inventory.generated.ini ansible/site.yml
-                    '''
-                }
+                    ansible -i ansible/inventory.generated.ini tomcat -m ping
+                    ansible-playbook -i ansible/inventory.generated.ini ansible/site.yml
+                '''
             }
         }
 
