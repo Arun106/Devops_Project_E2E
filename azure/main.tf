@@ -86,7 +86,7 @@ variable "deployment_options" {
 variable "resource_suffix" {
   description = "Optional suffix for Azure resource names. Set a new value to avoid collisions with failed partial deployments."
   type        = string
-  default     = null
+  default     = "run04"
 }
 
 variable "ssh_public_key_path" {
