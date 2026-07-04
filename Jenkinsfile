@@ -1,5 +1,5 @@
 pipeline {
-    agent any
+    agent { label 'azure' }
 
     parameters {
         string(name: 'RESOURCE_PREFIX', defaultValue: 'devops-e2e', description: 'Terraform resource name prefix')
