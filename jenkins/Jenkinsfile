@@ -1,0 +1,78 @@
+pipeline {
+    agent any
+
+    parameters {
+        string(name: 'VM_HOST', defaultValue: '20.205.13.22', description: 'Azure VM public IP or DNS name')
+        string(name: 'VM_USER', defaultValue: 'azureuser', description: 'SSH username for the Azure VM')
+    }
+
+    environment {
+        ANSIBLE_HOST_KEY_CHECKING = 'False'
+        SSH_CREDENTIALS_ID = 'azure-vm-ssh'
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                git branch: 'candidate/Arun',
+                    url: 'https://github.com/Arun106/Devops_Project_E2E.git'
+            }
+        }
+
+        stage('Install Prerequisites') {
+            steps {
+                sh 'chmod +x scripts/install_prereqs.sh'
+                sh './scripts/install_prereqs.sh'
+                sh 'ansible --version'
+            }
+        }
+
+        stage('Build') {
+            steps {
+                sh 'scripts/build.sh'
+            }
+        }
+
+        stage('Test') {
+            steps {
+                dir('app') {
+                    sh 'mvn test'
+                    junit 'target/surefire-reports/*.xml'
+                }
+            }
+        }
+
+        stage('Archive') {
+            steps {
+                archiveArtifacts artifacts: 'app/target/devops-e2e-app.war', fingerprint: true
+            }
+        }
+
+        stage('Deploy') {
+            when {
+                expression { return params.VM_HOST?.trim() }
+            }
+            steps {
+                sshagent(credentials: [env.SSH_CREDENTIALS_ID]) {
+                    sh '''
+                        cat > ansible/inventory.generated.ini <<EOF
+[tomcat]
+${VM_HOST} ansible_user=${VM_USER} ansible_python_interpreter=/usr/bin/python3
+EOF
+                        ansible -i ansible/inventory.generated.ini tomcat -m ping
+                        ansible-playbook -i ansible/inventory.generated.ini ansible/site.yml
+                    '''
+                }
+            }
+        }
+
+        stage('Health Check') {
+            when {
+                expression { return params.VM_HOST?.trim() }
+            }
+            steps {
+                sh 'scripts/health_check.sh "$VM_HOST"'
+            }
+        }
+    }
+}
