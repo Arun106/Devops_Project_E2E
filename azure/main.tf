@@ -16,6 +16,12 @@ variable "admin_username" {
   default     = "azureuser"
 }
 
+variable "vm_size" {
+  description = "Azure VM size for the Linux virtual machine."
+  type        = string
+  default     = "Standard_D2s_v3"
+}
+
 variable "ssh_public_key_path" {
   description = "Path to the SSH public key used for VM login."
   type        = string
@@ -124,7 +130,7 @@ resource "azurerm_linux_virtual_machine" "main" {
   name                = "${local.name}-vm"
   location            = azurerm_resource_group.main.location
   resource_group_name = azurerm_resource_group.main.name
-  size                = "Standard_B1s"
+  size                = var.vm_size
   admin_username      = var.admin_username
   network_interface_ids = [
     azurerm_network_interface.main.id
