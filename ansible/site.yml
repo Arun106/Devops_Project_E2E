@@ -1,0 +1,116 @@
+---
+- name: Configure Tomcat and deploy WAR
+  hosts: tomcat
+  become: true
+  gather_facts: true
+  vars:
+    tomcat_version: "9.0.89"
+    tomcat_user: tomcat
+    tomcat_group: tomcat
+    tomcat_home: /opt/tomcat
+    java_home: /usr/lib/jvm/java-11-openjdk-amd64
+    war_source: ../app/target/devops-e2e-app.war
+    war_dest: /opt/tomcat/webapps/devops-e2e-app.war
+
+  pre_tasks:
+    - name: Wait for SSH to become available
+      ansible.builtin.wait_for_connection:
+        timeout: 120
+
+  tasks:
+    - name: Install Java and archive tools
+      ansible.builtin.apt:
+        name:
+          - openjdk-11-jdk
+          - curl
+          - tar
+          - unzip
+        state: present
+        update_cache: true
+
+    - name: Create Tomcat group
+      ansible.builtin.group:
+        name: "{{ tomcat_group }}"
+        system: true
+
+    - name: Create Tomcat user
+      ansible.builtin.user:
+        name: "{{ tomcat_user }}"
+        group: "{{ tomcat_group }}"
+        home: "{{ tomcat_home }}"
+        shell: /usr/sbin/nologin
+        system: true
+        create_home: false
+
+    - name: Create Tomcat directory
+      ansible.builtin.file:
+        path: "{{ tomcat_home }}"
+        state: directory
+        owner: "{{ tomcat_user }}"
+        group: "{{ tomcat_group }}"
+        mode: "0755"
+
+    - name: Download Tomcat
+      ansible.builtin.unarchive:
+        src: "https://archive.apache.org/dist/tomcat/tomcat-9/v{{ tomcat_version }}/bin/apache-tomcat-{{ tomcat_version }}.tar.gz"
+        dest: "{{ tomcat_home }}"
+        remote_src: true
+        extra_opts:
+          - --strip-components=1
+        owner: "{{ tomcat_user }}"
+        group: "{{ tomcat_group }}"
+        creates: "{{ tomcat_home }}/bin/catalina.sh"
+
+    - name: Install Tomcat systemd service
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/tomcat.service
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=Apache Tomcat
+          After=network.target
+
+          [Service]
+          Type=forking
+          User={{ tomcat_user }}
+          Group={{ tomcat_group }}
+          Environment=JAVA_HOME={{ java_home }}
+          Environment=CATALINA_PID={{ tomcat_home }}/temp/tomcat.pid
+          Environment=CATALINA_HOME={{ tomcat_home }}
+          Environment=CATALINA_BASE={{ tomcat_home }}
+          ExecStart={{ tomcat_home }}/bin/startup.sh
+          ExecStop={{ tomcat_home }}/bin/shutdown.sh
+          Restart=on-failure
+
+          [Install]
+          WantedBy=multi-user.target
+      notify: Restart Tomcat
+
+    - name: Copy WAR to Tomcat webapps
+      ansible.builtin.copy:
+        src: "{{ war_source }}"
+        dest: "{{ war_dest }}"
+        owner: "{{ tomcat_user }}"
+        group: "{{ tomcat_group }}"
+        mode: "0644"
+      notify: Restart Tomcat
+
+    - name: Enable and start Tomcat
+      ansible.builtin.systemd:
+        name: tomcat
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    - name: Wait for Tomcat HTTP port
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 8080
+        timeout: 120
+
+  handlers:
+    - name: Restart Tomcat
+      ansible.builtin.systemd:
+        name: tomcat
+        state: restarted
+        daemon_reload: true
