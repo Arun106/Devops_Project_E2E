@@ -1,0 +1,5 @@
+resource_group_name  = "REPLACE_WITH_EXISTING_TFSTATE_RG"
+storage_account_name = "REPLACE_WITH_EXISTING_TFSTATE_ACCOUNT"
+container_name       = "tfstate"
+key                  = "azure-platform-showcase.tfstate"
+use_azuread_auth     = true

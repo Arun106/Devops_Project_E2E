@@ -1,0 +1,11 @@
+image:
+  repository: REPLACE_WITH_ACR_LOGIN_SERVER/devops-e2e-app
+  tag: REPLACE_WITH_COMMIT_SHA
+replicaCount: 2
+resources:
+  requests:
+    cpu: 100m
+    memory: 192Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
