@@ -1,0 +1,53 @@
+# Connect this GitHub repo to Azure Pipelines and configure the two variables below.
+trigger:
+  branches:
+    include: [main]
+  paths:
+    include: [app/**, platform/Dockerfile, platform/azure-pipelines.yml]
+pr:
+  branches:
+    include: [main]
+  paths:
+    include: [app/**, platform/Dockerfile, platform/azure-pipelines.yml]
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  azureServiceConnection: 'REPLACE_WITH_FEDERATED_ARM_CONNECTION'
+  acrName: 'REPLACE_WITH_ACR_NAME'
+  imageName: 'devops-e2e-app'
+
+stages:
+  - stage: Validate
+    jobs:
+      - job: BuildAndScan
+        steps:
+          - task: Maven@4
+            displayName: Test and package WAR
+            inputs:
+              mavenPomFile: app/pom.xml
+              goals: clean verify
+              publishJUnitResults: true
+              testResultsFiles: '**/surefire-reports/TEST-*.xml'
+              javaHomeOption: JDKVersion
+              jdkVersionOption: '1.17'
+          - bash: |
+              set -euo pipefail
+              docker build -f platform/Dockerfile -t "$(imageName):$(Build.SourceVersion)" .
+              docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:0.66.0 image --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed "$(imageName):$(Build.SourceVersion)"
+            displayName: Build image and gate on fixable vulnerabilities
+          - task: AzureCLI@2
+            displayName: Push image to ACR after merge
+            condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+            inputs:
+              azureSubscription: $(azureServiceConnection)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                set -euo pipefail
+                az acr login --name "$(acrName)"
+                LOGIN_SERVER=$(az acr show --name "$(acrName)" --query loginServer -o tsv)
+                docker tag "$(imageName):$(Build.SourceVersion)" "$LOGIN_SERVER/$(imageName):$(Build.SourceVersion)"
+                docker push "$LOGIN_SERVER/$(imageName):$(Build.SourceVersion)"
+                echo "Published $LOGIN_SERVER/$(imageName):$(Build.SourceVersion)"
